@@ -22,6 +22,11 @@ sealed trait Order {
    */
   def count: Int
 
+  /**
+   * Общая стоимость заявки
+   */
+  final def total: Int = count * price
+
 }
 
 object Order extends CommonParsers {

@@ -17,4 +17,10 @@ class OrderSpec extends FlatSpec with Matchers {
     parsePhrase(parser, "\ts\tC\t14\t5" ).successful should be (false)
   }
 
+  "Order.matchOrder(...)" should "partial matching" in {
+    Order.Buy("C1", "A", 10, 12).matchOther(Order.Sale("C2", "A", 8, 10)) should be (
+      Order.Match(List(Order.Sale("C2", "A", 8, 10), Order.Buy("C1", "A", 10, 10)), Order.Buy("C1", "A", 10, 2))
+    )
+  }
+
 }

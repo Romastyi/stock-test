@@ -23,6 +23,13 @@ sealed trait Order {
   def count: Int
 
   /**
+   * Сопоставить с другой заявкой
+   * @param order Заявка для сопоставления
+   * @return Результат сопоставления
+   */
+  def matchOther(order: Order): Order.MatchResult
+
+  /**
    * Общая стоимость заявки
    */
   final def total: Int = count * price
@@ -31,13 +38,33 @@ sealed trait Order {
 
 object Order extends CommonParsers {
 
+  sealed trait MatchResult
+  case object NoMatch extends MatchResult
+  final case class Match(matched: List[Order], rest: Order) extends MatchResult
+
   /**
    * Продажа.
    */
   final case class Sale(override val clientName: String,
                         override val stockName: String,
                         override val price: Int,
-                        override val count: Int) extends Order
+                        override val count: Int) extends Order {
+
+    override def matchOther(order: Order): MatchResult = order match {
+      case buy @ Buy(_, buyName, buyPrice, buyCount) if buyName == stockName && buyPrice >= price && buyCount > 0 && buyCount >= count =>
+        // Если заявка на продажу меньше заявки на покупку,
+        // то подверждаем заявку на продажу и уменьшаем заявку на покупку.
+        Match(List(this, buy.copy(count = count)).filter(_.count > 0), buy.copy(count = buyCount - count))
+      case buy @ Buy(_, buyName, buyPrice, buyCount) if buyName == stockName && buyPrice >= price && buyCount < count =>
+        // Если заявка на продажу больше заявки на покупку,
+        // то подверждаем заявку на покупку и уменьшаем заявку на продажу.
+        Match(List(buy, this.copy(count = buyCount)).filter(_.count > 0), this.copy(count = count - buyCount))
+      case _ =>
+        // Нельзя соспоставить с заявкой
+        NoMatch
+    }
+
+  }
 
   /**
    * Покупка.
@@ -45,7 +72,23 @@ object Order extends CommonParsers {
   final case class Buy(override val clientName: String,
                        override val stockName: String,
                        override val price: Int,
-                       override val count: Int) extends Order
+                       override val count: Int) extends Order {
+
+    override def matchOther(order: Order): MatchResult = order match {
+      case sale @ Sale(_, saleName, salePrice, saleCount) if saleName == stockName && salePrice <= price && saleCount > 0 && saleCount <= count =>
+        // Если заявка на продажу меньше заявки на покупку,
+        // то подтверждаем заявку на продажу и уменьшаем заявку на прокупку
+        Match(List(sale, this.copy(count = saleCount)).filter(_.count > 0), this.copy(count = count - saleCount))
+      case sale @ Sale(_, saleName, salePrice, saleCount) if saleName == stockName && salePrice <= price && saleCount > count =>
+        // Если заявка на продажу больше заявки на покупку,
+        // то подтверждаем заявку на покупку и уменьшаем заявку на продажу
+        Match(List(this, sale.copy(count = count)).filter(_.count > 0), sale.copy(count = saleCount - count))
+      case _ =>
+        // Нельзя соспоставить заявку
+        NoMatch
+    }
+
+  }
 
   private val SALE_MARK = "s"
   private val BUY_MARK  = "b"

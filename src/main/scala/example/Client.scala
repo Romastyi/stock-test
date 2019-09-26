@@ -11,16 +11,22 @@ package example
  */
 final case class Client(name: String, balance: Int, A: Int, B: Int, C: Int, D: Int) {
 
+  override def toString: String = s"$name\t$balance\t$A\t$B\t$C\t$D"
+
   def error[A](order: Order, msg: String): Either[String, A] =
     Left(s"Transaction $order couldn't be applied: $msg")
 
-  private def useBalance(order: Order): Either[String, Client] = {
-    if (order.total <= balance) Right(copy(balance = balance - order.total))
+  def canUseBalance(order: Order.Buy): Boolean = order.total <= balance
+
+  private def useBalance(order: Order.Buy): Either[String, Client] = {
+    if (canUseBalance(order)) Right(copy(balance = balance - order.total))
     else error(order, s"Not enough balance (need: ${order.total}, actual: $balance).")
   }
-  private def addBalance(order: Order): Either[String, Client] = {
+  private def addBalance(order: Order.Sale): Either[String, Client] = {
     Right(copy(balance = balance + order.total))
   }
+
+  def canUseStock(order: Order.Sale): Boolean = order.count <= getStockByName(order.stockName)
 
   private def getStockByName(stockName: String): Int = {
     stockName match {
@@ -31,7 +37,7 @@ final case class Client(name: String, balance: Int, A: Int, B: Int, C: Int, D: I
       case _   => 0
     }
   }
-  private def addStockByName(order: Order): Either[String, Client] = {
+  private def addStockByName(order: Order.Buy): Either[String, Client] = {
     order.stockName match {
       case "B" => Right(copy(B = B + order.count))
       case "C" => Right(copy(C = C + order.count))
@@ -40,14 +46,14 @@ final case class Client(name: String, balance: Int, A: Int, B: Int, C: Int, D: I
       case other => error(order, s"Unknown stock name '$other'.")
     }
   }
-  private def subStockByName(order: Order): Either[String, Client] = {
-    order.stockName match {
-      case "A" if A >= order.count => Right(copy(A = A - order.count))
-      case "B" if B >= order.count => Right(copy(B = B - order.count))
-      case "C" if C >= order.count => Right(copy(C = C - order.count))
-      case "D" if D >= order.count => Right(copy(D = D - order.count))
-      case _ => error(order, s"Not enough stock '${order.stockName}' count (need: ${order.count}, actual: ${getStockByName(order.stockName)}).")
-    }
+  private def subStockByName(order: Order.Sale): Either[String, Client] = {
+    if (canUseStock(order)) order.stockName match {
+      case "A" => Right(copy(A = A - order.count))
+      case "B" => Right(copy(B = B - order.count))
+      case "C" => Right(copy(C = C - order.count))
+      case "D" => Right(copy(D = D - order.count))
+      case other => error(order, s"Unknown stock name ('$other').")
+    } else error(order, s"Not enough stock '${order.stockName}' count (need: ${order.count}, actual: ${getStockByName(order.stockName)}).")
   }
 
 
@@ -71,9 +77,16 @@ final case class Client(name: String, balance: Int, A: Int, B: Int, C: Int, D: I
     }
   }
 
+  def applyOrder(order: Order): Client = order match {
+    case buyOrder: Order.Buy   => buy(buyOrder)
+    case saleOrder: Order.Sale => sale(saleOrder)
+  }
+
 }
 
 object Client extends CommonParsers {
+
+  type MapOfClients = Map[String, Client]
 
   /**
    * Файл списка клиетов (clients.txt) имеет следующие поля:
@@ -97,6 +110,30 @@ object Client extends CommonParsers {
    * Вычитка клиентов в словарь: имя_клиента -> модель_клиента
    * @return Словарь клиентов
    */
-  def readClientsAsMap: Map[String, Client] = readClients.map(i => i.name -> i).toMap
+  def readClientsAsMap: MapOfClients = readClients.map(i => i.name -> i).toMap
+
+  def applyOderToMapOfClients(mapOfClients: MapOfClients, orders: List[Order]): MapOfClients = {
+    orders.foldLeft(mapOfClients) { case (acc, order) =>
+      acc.updatedWith(order.clientName)(_.map(_.applyOrder(order)))
+    }
+  }
+
+  def canApplyOrder(mapOfClients: MapOfClients, order: Order): Boolean = {
+    (mapOfClients.get(order.clientName), order) match {
+      case (Some(client), buy : Order.Buy ) => client.canUseBalance(buy)
+      case (Some(client), sale: Order.Sale) => client.canUseStock(sale)
+      case _ => false
+    }
+  }
+
+  def printMapOfClients(mapOfClients: MapOfClients): String = {
+    mapOfClients.values.toList.sortBy(_.name).mkString("\n")
+  }
+
+  def saveResults(mapOfClients: MapOfClients): Unit = {
+    val resultsTxt = java.nio.file.Paths.get("results.txt")
+    java.nio.file.Files.write(resultsTxt, printMapOfClients(mapOfClients).getBytes)
+    println("Write result to file: " + resultsTxt.toAbsolutePath.toString)
+  }
 
 }

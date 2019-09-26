@@ -18,9 +18,20 @@ class OrderSpec extends FlatSpec with Matchers {
   }
 
   "Order.matchOrder(...)" should "partial matching" in {
-    Order.Buy("C1", "A", 10, 12).matchOther(Order.Sale("C2", "A", 8, 10)) should be (
-      Order.Match(List(Order.Sale("C2", "A", 8, 10), Order.Buy("C1", "A", 10, 10)), Order.Buy("C1", "A", 10, 2))
-    )
+    val buy1 = Order.Buy("C1", "A", 10, 12)
+    val sale1 = Order.Sale("C2", "A", 8, 10)
+    val match1 = Order.Match(List(Order.Sale("C2", "A", 8, 10), Order.Buy("C1", "A", 10, 10)), Order.Buy("C1", "A", 10, 2))
+    buy1.matchOther(sale1) should be (match1)
+    sale1.matchOther(buy1) should be (match1)
+
+    val buy2 = Order.Buy("C1", "A", 10, 10)
+    val sale2 = Order.Sale("C2", "A", 8, 12)
+    val match2 = Order.Match(List(Order.Buy("C1", "A", 10, 10), Order.Sale("C2", "A", 8, 10)), Order.Sale("C2", "A", 8, 2))
+    buy2.matchOther(sale2) should be (match2)
+    sale2.matchOther(buy2) should be (match2)
+
+    buy1.matchOther(buy2) should be (Order.NoMatch)
+    sale1.matchOther(sale2) should be (Order.NoMatch)
   }
 
 }

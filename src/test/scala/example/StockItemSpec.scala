@@ -35,4 +35,34 @@ class StockItemSpec extends FlatSpec with Matchers {
     ))
   }
 
+  /**
+   * C8	b	C	15	4
+   * C2	s	C	14	5
+   * C2	s	C	13	2
+   */
+  it should "orders.txt sample" in {
+    val clients = Map(
+      "C2" -> Client("C2", 100, 0, 0, 7, 0),
+      "C8" -> Client("C8", 100, 0, 0, 0, 0)
+    )
+    val orders = List(
+      Order.Buy ("C8", "C", 15, 4),
+      Order.Sale("C2", "C", 14, 5),
+      Order.Sale("C2", "C", 13, 2)
+    )
+    StockItem.calcStock(clients, orders.iterator) should be ((
+      Map(
+        "A" -> StockItem("A", Nil, Nil),
+        "B" -> StockItem("B", Nil, Nil),
+        "C" -> StockItem("C", Nil, List(Order.Sale("C2", "C", 14, 1), Order.Sale("C2", "C", 13, 2))),
+        "D" -> StockItem("D", Nil, Nil)
+      ),
+      Map(
+        "C2" -> Client("C2", 156, 0, 0, 3, 0),
+        "C8" -> Client("C8",  40, 0, 0, 4, 0)
+      )
+    ))
+
+  }
+
 }
